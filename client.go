@@ -29,6 +29,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/api/types/image"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // zypperExitCode is used as zypper-docker's exit code.
@@ -59,20 +61,20 @@ func (de dockerError) Error() string {
 // DockerClient is an interface listing all the functions that we use from
 // Docker clients.
 type DockerClient interface {
-	ContainerCommit(ctx context.Context, container string, options types.ContainerCommitOptions) (types.IDResponse, error)
-	ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, containerName string) (container.ContainerCreateCreatedBody, error)
+	ContainerCommit(ctx context.Context, container string, options container.CommitOptions) (types.IDResponse, error)
+        ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *ocispec.Platform, containerName string) (container.CreateResponse, error)
 	ContainerKill(ctx context.Context, containerID, signal string) error
-	ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error)
-	ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error)
-	ContainerRemove(ctx context.Context, containerID string, options types.ContainerRemoveOptions) error
-	ContainerResize(ctx context.Context, containerID string, options types.ResizeOptions) error
-	ContainerStart(ctx context.Context, containerID string, options types.ContainerStartOptions) error
-	ContainerWait(ctx context.Context, containerID string, condition container.WaitCondition) (<-chan container.ContainerWaitOKBody, <-chan error)
+	ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error)
+	ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error)
+	ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error
+	ContainerResize(ctx context.Context, containerID string, options container.ResizeOptions) error
+	ContainerStart(ctx context.Context, containerID string, options container.StartOptions) error
+	ContainerWait(ctx context.Context, containerID string, condition container.WaitCondition) (<-chan container.WaitResponse, <-chan error)
 	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
 
 	ImageInspectWithRaw(ctx context.Context, imageID string) (types.ImageInspect, []byte, error)
-	ImageList(ctx context.Context, options types.ImageListOptions) ([]types.ImageSummary, error)
-	ImageRemove(ctx context.Context, containerID string, options types.ImageRemoveOptions) ([]types.ImageDeleteResponseItem, error)
+	ImageList(ctx context.Context, options image.ListOptions) ([]image.Summary, error)
+	ImageRemove(ctx context.Context, containerID string, options image.RemoveOptions) ([]image.DeleteResponse, error)
 }
 
 // The timeout in which the container is allowed to run a command as given
@@ -227,7 +229,7 @@ func runCommandInContainer(img string, cmd []string, dst io.Writer) (string, err
 func startContainer(containerID string, wait bool, dst io.Writer) (string, error) {
 
 	client := getDockerClient()
-	if err := client.ContainerStart(context.Background(), containerID, types.ContainerStartOptions{}); err != nil {
+	if err := client.ContainerStart(context.Background(), containerID, container.StartOptions{}); err != nil {
 		// Silently fail, since it might be "zypper" not existing and we don't
 		// want to add noise to the log.
 		return containerID, err
@@ -238,7 +240,7 @@ func startContainer(containerID string, wait bool, dst io.Writer) (string, error
 
 	if dst != nil {
 		// setup logging
-		rc, err := client.ContainerLogs(context.Background(), containerID, types.ContainerLogsOptions{
+		rc, err := client.ContainerLogs(context.Background(), containerID, container.LogsOptions{
 			Follow:     true, // required to keep streaming
 			ShowStdout: true,
 			ShowStderr: true,
@@ -332,7 +334,7 @@ func createContainer(img string, cmd []string) (string, error) {
 		// like "zypper ref" does
 		Tty: true,
 	}
-	resp, err := client.ContainerCreate(context.Background(), config, getHostConfig(), nil, "")
+	resp, err := client.ContainerCreate(context.Background(), config, getHostConfig(), nil, nil, "")
 	if err != nil {
 		return "", err
 	}
@@ -348,7 +350,7 @@ func createContainer(img string, cmd []string) (string, error) {
 func removeContainer(containerID string) {
 	client := getDockerClient()
 
-	err := client.ContainerRemove(context.Background(), containerID, types.ContainerRemoveOptions{
+	err := client.ContainerRemove(context.Background(), containerID, container.RemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
 	})
@@ -389,7 +391,7 @@ func commitContainerToImage(img, containerID, repo, tag, comment, author string)
 		reference = repo + ":" + tag
 	}
 	// And we commit into the new image.
-	resp, err := client.ContainerCommit(context.Background(), containerID, types.ContainerCommitOptions{
+	resp, err := client.ContainerCommit(context.Background(), containerID, container.CommitOptions{
 		Reference: reference,
 		Comment:   comment,
 		Author:    author,
@@ -423,46 +425,46 @@ func runCommandAndCommitToImage(img, targetRepo, targetTag, cmd, comment, author
 // SUSE or openSUSE.
 func checkContainerRunning(id string) (types.Container, error) {
 	client := getDockerClient()
-	var container types.Container
+	var cnt types.Container
 
-	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{})
+	containers, err := client.ContainerList(context.Background(), container.ListOptions{})
 	if err != nil {
-		return container, fmt.Errorf("Error while fetching running containers: %v", err)
+		return cnt, fmt.Errorf("Error while fetching running containers: %v", err)
 	}
 
 	found := false
 	for _, c := range containers {
 		if id == c.ID {
-			container = c
+			cnt = c
 			found = true
 			break
 		}
 		// look also for the short version of the container ID
 		if len(id) >= 12 && strings.Index(c.ID, id) == 0 {
-			container = c
+			cnt = c
 			found = true
 			break
 		}
 		// for some reason the daemon has all the names prefixed by "/"
 		if arrayIncludeString(c.Names, "/"+id) {
-			container = c
+			cnt = c
 			found = true
 			break
 		}
 	}
 
 	if !found {
-		return container, fmt.Errorf("Cannot find running container: %s", id)
+		return cnt, fmt.Errorf("Cannot find running container: %s", id)
 	}
 
 	cache := getCacheFile()
-	if !cache.isSUSE(container.Image) {
-		return container, fmt.Errorf(
+	if !cache.isSUSE(cnt.Image) {
+		return cnt, fmt.Errorf(
 			"The container %s is based on the Docker image %s which is not a SUSE system",
-			id, container.Image)
+			id, cnt.Image)
 	}
 
-	return container, nil
+	return cnt, nil
 }
 
 // checks whether a container with the given container ID exists. If it
@@ -479,24 +481,24 @@ func checkContainerExists(containerID string) (types.ContainerJSON, bool) {
 func commitAndExecute(f commandFunc, ctx *cli.Context, containerID string) (string, error) {
 	client := getDockerClient()
 	// commit container to a new image
-	image, err := client.ContainerCommit(context.Background(), containerID, types.ContainerCommitOptions{})
+	img, err := client.ContainerCommit(context.Background(), containerID, container.CommitOptions{})
 	// remove the image when finished
 	if err != nil {
 		return "", err
 	}
 	// given commandFunc is executed.
-	err = f(image.ID, ctx)
+	err = f(img.ID, ctx)
 
-	removeOpts := types.ImageRemoveOptions{
+	removeOpts := image.RemoveOptions{
 		Force:         true,
 		PruneChildren: true,
 	}
 
-	if _, rmErr := client.ImageRemove(context.Background(), image.ID, removeOpts); rmErr != nil {
+	if _, rmErr := client.ImageRemove(context.Background(), img.ID, removeOpts); rmErr != nil {
 		if err != nil {
 			rmErr = fmt.Errorf("%v: %v", err, rmErr)
 		}
 		err = rmErr
 	}
-	return image.ID, err
+	return img.ID, err
 }

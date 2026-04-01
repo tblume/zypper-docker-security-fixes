@@ -1,21 +1,25 @@
-package client // import "github.com/docker/docker/client"
+package client
 
 import (
+	"context"
 	"net/url"
 
-	"context"
-
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/swarm"
 )
 
 // NodeRemove removes a Node.
-func (cli *Client) NodeRemove(ctx context.Context, nodeID string, options types.NodeRemoveOptions) error {
+func (cli *Client) NodeRemove(ctx context.Context, nodeID string, options swarm.NodeRemoveOptions) error {
+	nodeID, err := trimID("node", nodeID)
+	if err != nil {
+		return err
+	}
+
 	query := url.Values{}
 	if options.Force {
 		query.Set("force", "1")
 	}
 
 	resp, err := cli.delete(ctx, "/nodes/"+nodeID, query, nil)
-	ensureReaderClosed(resp)
-	return wrapResponseError(err, resp, "node", nodeID)
+	defer ensureReaderClosed(resp)
+	return err
 }

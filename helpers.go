@@ -29,6 +29,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-units"
+	"github.com/docker/docker/api/types/image"
 )
 
 var specialFlags = []string{
@@ -399,7 +400,7 @@ func removeDuplicates(elements []string) []string {
 }
 
 // format and print given images to match `docker images` output
-func formatAndPrint(images []types.ImageSummary) {
+func formatAndPrint(images []image.Summary) {
 	writer := tabwriter.NewWriter(os.Stdout, 20, 1, 3, ' ', 0)
 	fmt.Fprintln(writer, "REPOSITORY\tTAG\tIMAGE ID\tCREATED\tSIZE")
 

@@ -26,6 +26,9 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/image"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	ociv1 "github.com/moby/docker-image-spec/specs-go/v1"
 )
 
 type mockClient struct {
@@ -50,7 +53,7 @@ type mockClient struct {
 	suppressLog        bool
 }
 
-func (mc *mockClient) ImageList(ctx context.Context, options types.ImageListOptions) ([]types.ImageSummary, error) {
+func (mc *mockClient) ImageList(ctx context.Context, options image.ListOptions) ([]image.Summary, error) {
 	if mc.listFail {
 		return nil, errors.New("List Failed")
 	}
@@ -60,8 +63,8 @@ func (mc *mockClient) ImageList(ctx context.Context, options types.ImageListOpti
 
 	// Let's return some more or less realistic images.
 	if mc.listReturnOneImage {
-		return []types.ImageSummary{
-			types.ImageSummary{
+		return []image.Summary{
+			image.Summary{
 				ID:          "2",
 				ParentID:    "0",       // Not used
 				Size:        254515796, // 254.5 MB
@@ -72,8 +75,8 @@ func (mc *mockClient) ImageList(ctx context.Context, options types.ImageListOpti
 		}, nil
 	}
 
-	return []types.ImageSummary{
-		types.ImageSummary{
+	return []image.Summary{
+		image.Summary{
 			ID:          "1",
 			ParentID:    "0",       // Not used
 			Size:        254515796, // 254.5 MB
@@ -81,7 +84,7 @@ func (mc *mockClient) ImageList(ctx context.Context, options types.ImageListOpti
 			RepoTags:    []string{"opensuse:latest", "opensuse:tag"},
 			Created:     time.Now().UnixNano(),
 		},
-		types.ImageSummary{
+		image.Summary{
 			ID:          "2",
 			ParentID:    "0",       // Not used
 			Size:        254515796, // 254.5 MB
@@ -89,7 +92,7 @@ func (mc *mockClient) ImageList(ctx context.Context, options types.ImageListOpti
 			RepoTags:    []string{"opensuse:13.2"},
 			Created:     time.Now().UnixNano(),
 		},
-		types.ImageSummary{
+		image.Summary{
 			ID:          "3",
 			ParentID:    "0",       // Not used
 			Size:        254515796, // 254.5 MB
@@ -97,7 +100,7 @@ func (mc *mockClient) ImageList(ctx context.Context, options types.ImageListOpti
 			RepoTags:    []string{"ubuntu:latest"},
 			Created:     time.Now().UnixNano(),
 		},
-		types.ImageSummary{
+		image.Summary{
 			ID:          "4",
 			ParentID:    "0",       // Not used
 			Size:        254515796, // 254.5 MB
@@ -105,7 +108,7 @@ func (mc *mockClient) ImageList(ctx context.Context, options types.ImageListOpti
 			RepoTags:    []string{}, // Invalid image
 			Created:     time.Now().UnixNano(),
 		},
-		types.ImageSummary{
+		image.Summary{
 			ID:          "5",
 			ParentID:    "0",       // Not used
 			Size:        254515796, // 254.5 MB
@@ -116,14 +119,15 @@ func (mc *mockClient) ImageList(ctx context.Context, options types.ImageListOpti
 	}, nil
 }
 
-func (mc *mockClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, containerName string) (container.ContainerCreateCreatedBody, error) {
+//func (mc *mockClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, containerName string) (container.CreateResponse, error) {
+func (mc *mockClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *ocispec.Platform, containerName string) (container.CreateResponse, error) {
 	var (
 		warnings []string
 		name     string
 	)
 
 	if mc.createFail {
-		return container.ContainerCreateCreatedBody{}, errors.New("Create failed")
+		return container.CreateResponse{}, errors.New("Create failed")
 	}
 	if mc.createWarnings {
 		warnings = []string{"warning"}
@@ -137,10 +141,10 @@ func (mc *mockClient) ContainerCreate(ctx context.Context, config *container.Con
 
 	mc.lastCmd = config.Cmd
 
-	return container.ContainerCreateCreatedBody{ID: name, Warnings: warnings}, nil
+	return container.CreateResponse{ID: name, Warnings: warnings}, nil
 }
 
-func (mc *mockClient) ContainerStart(ctx context.Context, containerID string, options types.ContainerStartOptions) error {
+func (mc *mockClient) ContainerStart(ctx context.Context, containerID string, options container.StartOptions) error {
 	if mc.startFail {
 		return errors.New("Start failed")
 	}
@@ -151,7 +155,7 @@ func (mc *mockClient) ContainerStart(ctx context.Context, containerID string, op
 	return nil
 }
 
-func (mc *mockClient) ContainerRemove(ctx context.Context, containerID string, options types.ContainerRemoveOptions) error {
+func (mc *mockClient) ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error {
 	if mc.removeFail {
 		return errors.New("Remove failed")
 	}
@@ -161,35 +165,35 @@ func (mc *mockClient) ContainerRemove(ctx context.Context, containerID string, o
 	return nil
 }
 
-func (mc *mockClient) ContainerWait(ctx context.Context, containerID string, condition container.WaitCondition) (<-chan container.ContainerWaitOKBody, <-chan error) {
-	resultC := make(chan container.ContainerWaitOKBody)
+func (mc *mockClient) ContainerWait(ctx context.Context, containerID string, condition container.WaitCondition) (<-chan container.WaitResponse, <-chan error) {
+	resultC := make(chan container.WaitResponse)
 	errC := make(chan error)
 
 	go func() {
 		time.Sleep(mc.waitSleep)
 		if mc.waitFail {
 			errC <- errors.New("Wait failed")
-			resultC <- container.ContainerWaitOKBody{StatusCode: -1}
+			resultC <- container.WaitResponse{StatusCode: -1}
 			return
 		}
 		if mc.commandFail {
 			// If commandExit was not specified, just exit with 1.
 			if mc.commandExit == 0 {
-				resultC <- container.ContainerWaitOKBody{StatusCode: 1}
+				resultC <- container.WaitResponse{StatusCode: 1}
 				errC <- nil
 				return
 			}
-			resultC <- container.ContainerWaitOKBody{StatusCode: (int64)(mc.commandExit)}
+			resultC <- container.WaitResponse{StatusCode: (int64)(mc.commandExit)}
 			errC <- nil
 			return
 		}
-		resultC <- container.ContainerWaitOKBody{StatusCode: 0}
+		resultC <- container.WaitResponse{StatusCode: 0}
 		errC <- nil
 	}()
 	return resultC, errC
 }
 
-func (mc *mockClient) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
+func (mc *mockClient) ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error) {
 	var err error
 
 	if mc.logFail {
@@ -213,14 +217,14 @@ func (mc *mockClient) ContainerKill(ctx context.Context, containerID, signal str
 	return nil
 }
 
-func (mc *mockClient) ContainerCommit(ctx context.Context, container string, options types.ContainerCommitOptions) (types.IDResponse, error) {
+func (mc *mockClient) ContainerCommit(ctx context.Context, container string, options container.CommitOptions) (types.IDResponse, error) {
 	if mc.commitFail {
 		return types.IDResponse{ID: ""}, fmt.Errorf("Fake failure while committing container")
 	}
 	return types.IDResponse{ID: "fake image ID"}, nil
 }
 
-func (mc *mockClient) ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
+func (mc *mockClient) ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error) {
 	if mc.listFail {
 		return []types.Container{},
 			fmt.Errorf("Fake failure while listing containers")
@@ -258,23 +262,23 @@ func (mc *mockClient) ContainerList(ctx context.Context, options types.Container
 	}, nil
 }
 
-func (mc *mockClient) ContainerResize(ctx context.Context, containerID string, options types.ResizeOptions) error {
+func (mc *mockClient) ContainerResize(ctx context.Context, containerID string, options container.ResizeOptions) error {
 	// Do nothing
 	return nil
 }
 
-func (mc *mockClient) ImageInspectWithRaw(ctx context.Context, imageID string) (types.ImageInspect, []byte, error) {
+func (mc *mockClient) ImageInspectWithRaw(ctx context.Context, imageID string) (image.InspectResponse, []byte, error) {
 	if mc.inspectFail {
-		return types.ImageInspect{}, []byte{}, errors.New("inspect fail")
+		return image.InspectResponse{}, []byte{}, errors.New("inspect fail")
 	}
-	return types.ImageInspect{ID: "1", Config: &container.Config{Image: "1"}}, []byte{}, nil
+	return image.InspectResponse{ID: "1", Config: &ociv1.DockerOCIImageConfig{}, }, []byte{}, nil
 }
 
-func (mc *mockClient) ImageRemove(ctx context.Context, image string, options types.ImageRemoveOptions) ([]types.ImageDeleteResponseItem, error) {
-	if mc.removeFail {
-		return []types.ImageDeleteResponseItem{}, errors.New("remove fail")
-	}
-	return nil, nil
+func (mc *mockClient) ImageRemove(ctx context.Context, imageID string, options image.RemoveOptions) ([]image.DeleteResponse, error) {
+    if mc.removeFail {
+        return []image.DeleteResponse{}, errors.New("remove fail")
+    }
+    return nil, nil
 }
 
 func (mc *mockClient) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {

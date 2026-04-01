@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/docker/docker/api/types"
+        "github.com/docker/docker/api/types/container"
 )
 
 // Resize the TTY of the container with the given id to the size of the current
@@ -32,7 +32,7 @@ func resizeTty(id string) {
 	}
 
 	client := getDockerClient()
-	err := client.ContainerResize(context.Background(), id, types.ResizeOptions{
+	err := client.ContainerResize(context.Background(), id, container.ResizeOptions{
 		Height: height,
 		Width:  width,
 	})

@@ -42,7 +42,11 @@ type PluginConfig struct {
 	// Required: true
 	Description string `json:"Description"`
 
-	// Docker Version used to create the plugin
+	// Docker Version used to create the plugin.
+	//
+	// Depending on how the plugin was created, this field may be empty or omitted.
+	//
+	// Deprecated: this field is no longer set, and will be removed in the next API version.
 	DockerVersion string `json:"DockerVersion,omitempty"`
 
 	// documentation
@@ -120,6 +124,9 @@ type PluginConfigArgs struct {
 // PluginConfigInterface The interface between Docker and the plugin
 // swagger:model PluginConfigInterface
 type PluginConfigInterface struct {
+
+	// Protocol to use for clients connecting to the plugin.
+	ProtocolScheme string `json:"ProtocolScheme,omitempty"`
 
 	// socket
 	// Required: true
