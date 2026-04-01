@@ -8,8 +8,8 @@ github.com/coreos/go-systemd v0.0.0-20180409111510-d1b7d058aa2a h1:kJfKDOt1RNg9d
 github.com/coreos/go-systemd v0.0.0-20180409111510-d1b7d058aa2a/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/coreos/pkg v0.0.0-20180108230652-97fdf19511ea h1:n2Ltr3SrfQlf/9nOna1DoGKxLx3qTSI8Ttl6Xrqp6mw=
 github.com/coreos/pkg v0.0.0-20180108230652-97fdf19511ea/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
-github.com/cpuguy83/go-md2man v1.0.9-0.20180215021727-48d8747a2ca1 h1:ElayFqEP25dH3OBk0+SPM3B+k/g0iussQgBucpVfl8g=
-github.com/cpuguy83/go-md2man v1.0.9-0.20180215021727-48d8747a2ca1/go.mod h1:N6JayAiVKtlHSnuTCeuLSQVs75hb8q+dYQLjr7cDsKY=
+github.com/cpuguy83/go-md2man v1.0.9-0.20190314182720-7c3bbf680b77 h1:lrG9gtZo1/x6FiQ2cpOI/GnjRJD80LtbLiEFMxxjbpA=
+github.com/cpuguy83/go-md2man v1.0.9-0.20190314182720-7c3bbf680b77/go.mod h1:EKrAeiUvuwLlrsOACsakeQ4q+JwLyCgg2HEk56S8SWU=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/docker/distribution v2.6.0-rc.1.0.20180327202408-83389a148052+incompatible h1:W1rhCpxfWMU0CaZSFWpmWfmB68zYZVksig+VC1ZbgI4=
